@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>לקסי — אוצר מילים לבגרות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700;800;900&family=Heebo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app" id="app">
+
+    <div class="app-header">
+      <div class="brand">לקסי<small>Band III · אוצר מילים לבגרות</small></div>
+      <button class="header-btn" onclick="goto('stats')">הסטטיסטיקה שלי</button>
+    </div>
+
+    <!-- HOME -->
+    <div class="screen active" id="screen-home">
+      <div id="home-day-card"></div>
+      <div class="stat-row" id="home-stats"></div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>סה״כ מילים נלמדו</span><span class="en" id="progress-text"></span></div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- INTRO -->
+    <div class="screen" id="screen-intro">
+      <div class="card-counter" id="intro-counter"></div>
+      <div class="word-card" id="intro-card"></div>
+      <div class="card-nav">
+        <button class="nav-btn" id="intro-prev" onclick="introStep(-1)">›</button>
+        <div class="dots" id="intro-dots"></div>
+        <button class="nav-btn" id="intro-next" onclick="introStep(1)">‹</button>
+      </div>
+    </div>
+
+    <!-- HUB -->
+    <div class="screen" id="screen-hub">
+      <h2 style="margin-bottom:4px;">בואו נתרגל</h2>
+      <p style="color:var(--muted-ink); font-size:13.5px; margin-bottom:18px;">כמה דרכים לתרגל את מילות היום — כל פעם אחרת. צריך להשלים לפחות 2 כדי שהיום ייחשב.</p>
+      <div id="hub-tiles"></div>
+      <div class="push"></div>
+      <p id="hub-gate-note" style="text-align:center; font-size:12.5px; color:var(--muted-ink); margin-bottom:8px;"></p>
+      <button class="btn btn-primary" id="hub-finish-btn" onclick="tryFinishHub()">סיום היום</button>
+    </div>
+
+    <!-- FILL IN THE BLANK -->
+    <div class="screen" id="screen-fillblank">
+      <div class="q-progress" id="fb-progress"></div>
+      <div class="sentence-card" id="fb-sentence"></div>
+      <div class="hint-row">
+        <button class="hint-btn" id="fb-hint-btn" onclick="toggleFbHint()">🌐 תרגום</button>
+        <span class="hint-text" id="fb-hint-text"></span>
+      </div>
+      <div class="word-bank" id="fb-bank"></div>
+      <div class="push"></div>
+      <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
+    </div>
+    <div class="screen" id="screen-fillblank-done">
+      <div class="mini-result">
+        <div class="section-label">השלמת משפטים</div>
+        <div class="score" id="fb-score"></div>
+        <p>תשובות נכונות</p>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="goto('hub')">חזרה לתפריט</button>
+      </div>
+    </div>
+
+    <!-- TYPING -->
+    <div class="screen" id="screen-typing">
+      <div class="q-progress" id="typing-progress"></div>
+      <div class="typing-card" id="typing-card"></div>
+      <div class="typing-input-row">
+        <input type="text" id="typing-input" class="typing-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="כתבו כאן באנגלית..." />
+        <button class="btn btn-primary typing-check" id="typing-check-btn">בדיקה</button>
+      </div>
+      <div class="typing-feedback" id="typing-feedback"></div>
+      <div class="push"></div>
+      <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
+    </div>
+    <div class="screen" id="screen-typing-done">
+      <div class="mini-result">
+        <div class="section-label">הקלדה מהעברית</div>
+        <div class="score" id="typing-score"></div>
+        <p>תשובות נכונות</p>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="goto('hub')">חזרה לתפריט</button>
+      </div>
+    </div>
+
+    <!-- MATCHING -->
+    <div class="screen" id="screen-matching">
+      <p style="font-size:13px; color:var(--muted-ink); margin-bottom:12px;">הקישו על מילה ואז על ההגדרה המתאימה לה באנגלית.</p>
+      <div class="match-grid" id="match-grid"></div>
+      <div class="push"></div>
+      <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
+    </div>
+    <div class="screen" id="screen-matching-done">
+      <div class="mini-result">
+        <div class="section-label">התאמה להגדרה</div>
+        <div class="score" id="match-score"></div>
+        <p>זוגות הותאמו</p>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="goto('hub')">חזרה לתפריט</button>
+      </div>
+    </div>
+
+    <!-- QUIZ -->
+    <div class="screen" id="screen-quiz">
+      <div class="q-progress" id="quiz-progress"></div>
+      <div class="quiz-prompt-wrap">
+        <div class="quiz-kicker" id="quiz-kicker"></div>
+        <div class="quiz-prompt" id="quiz-prompt"></div>
+      </div>
+      <div class="hint-row" id="quiz-hint-row">
+        <button class="hint-btn" id="quiz-hint-btn" onclick="toggleQuizHint()">🌐 תרגום</button>
+        <span class="hint-text" id="quiz-hint-text"></span>
+      </div>
+      <div class="quiz-options" id="quiz-options"></div>
+      <div class="push"></div>
+      <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
+    </div>
+    <div class="screen" id="screen-quiz-done">
+      <div class="mini-result">
+        <div class="section-label">חידון מהיר</div>
+        <div class="score" id="quiz-score"></div>
+        <p>תשובות נכונות</p>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="goto('hub')">חזרה לתפריט</button>
+      </div>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="screen" id="screen-summary">
+      <h2 style="text-align:center;">כל הכבוד!</h2>
+      <div class="score-ring" id="summary-ring" style="--pct:0;">
+        <div class="score-ring-inner">
+          <div class="n" id="summary-pct">0%</div>
+          <div class="l">הצלחה</div>
+        </div>
+      </div>
+      <div class="summary-list" id="summary-list"></div>
+      <div class="push"></div>
+      <button class="btn btn-primary" id="summary-next-btn" onclick="finishDay()">סיימתי את היום</button>
+      <button class="btn btn-ghost" onclick="goto('home')" style="margin:6px auto 0;">לדף הבית</button>
+    </div>
+
+    <!-- STATS -->
+    <div class="screen" id="screen-stats">
+      <h2 style="margin-bottom:14px;">ההתקדמות שלי</h2>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>סה״כ מילים</span><span class="en" id="stats-progress-text"></span></div>
+        <div class="progress-track"><div class="progress-fill" id="stats-progress-fill"></div></div>
+      </div>
+      <div class="section-label">14 הימים האחרונים</div>
+      <div class="streak-strip" id="streak-strip"></div>
+      <div class="section-label">ימים שהושלמו</div>
+      <div id="stats-days-list"></div>
+      <div class="push"></div>
+      <button class="btn btn-outline" onclick="resetProgress()">איפוס התקדמות</button>
+      <button class="btn btn-ghost" onclick="goto('home')" style="margin:6px auto 0;">לדף הבית</button>
+    </div>
+
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
