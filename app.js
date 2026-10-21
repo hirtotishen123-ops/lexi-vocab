@@ -291,10 +291,10 @@
   function renderHub(){
     var day = currentDayObj();
     var tiles = [
-      { key:'fillblank', title:'השלמת משפטים', sub:'בחרו מילה ממחסן המילים', icon:'Aa' },
-      { key:'typing', title:'הקלדה מהעברית', sub:'כתבו את המילה באנגלית לבד', icon:'✎' },
-      { key:'matching', title:'התאמה להגדרה', sub:'התאימו מילה להגדרה באנגלית', icon:'⇄' },
-      { key:'quiz', title:'חידון מהיר', sub:'עברית ↔ אנגלית, שאלה אחר שאלה', icon:'?' }
+      { key:'fillblank', title:'השלמת משפטים', sub:'בחרו מילה ממחסן המילים', icon:'Aa', color:'amber' },
+      { key:'typing', title:'הקלדה מהעברית', sub:'כתבו את המילה באנגלית לבד', icon:'✎', color:'violet' },
+      { key:'matching', title:'התאמה להגדרה', sub:'התאימו מילה להגדרה באנגלית', icon:'⇄', color:'rose' },
+      { key:'quiz', title:'חידון מהיר', sub:'עברית ↔ אנגלית, שאלה אחר שאלה', icon:'?', color:'' }
     ];
     var html = '';
     tiles.forEach(function(t){
@@ -303,7 +303,7 @@
       var result = session[t.key];
       var done = result !== null;
       html += '<div class="ex-tile ' + (done?'done':'') + '" onclick="goto(\'' + t.key + '\')">' +
-        '<div class="ex-icon">' + t.icon + '</div>' +
+        '<div class="ex-icon ' + t.color + '">' + t.icon + '</div>' +
         '<div class="ex-body"><div class="ex-title">' + t.title + '</div><div class="ex-sub">' + t.sub + '</div></div>' +
         '<div class="ex-status ' + (done?'done':'') + '">' + (done ? ('✓ ' + result.correct + '/' + result.total) : 'עדיין לא') + '</div>' +
       '</div>';
@@ -370,6 +370,7 @@
       chipEl.classList.add('correct');
       blank.textContent = w.en;
       blank.classList.add('filled');
+      attachLongPress(blank, function(){ return w.en + ' — ' + w.he; });
       document.querySelectorAll('#fb-bank .chip').forEach(function(c){ c.classList.add('disabled'); });
       setTimeout(advanceFillblank, 650);
     } else {
@@ -382,6 +383,7 @@
       });
       blank.textContent = w.en;
       blank.classList.add('wrong');
+      attachLongPress(blank, function(){ return w.en + ' — ' + w.he; });
       var fbk = document.getElementById('fb-feedback');
       document.getElementById('fb-feedback-text').innerHTML = wordFeedbackHtml(w);
       fbk.style.display = 'flex';
@@ -559,6 +561,9 @@
     document.getElementById('quiz-progress').innerHTML = prog;
     document.getElementById('quiz-kicker').textContent = q.kicker;
     document.getElementById('quiz-prompt').innerHTML = q.promptEn ? '<span class="en">' + q.prompt + '</span>' : q.prompt;
+    if (q.promptEn){
+      attachLongPress(document.querySelector('#quiz-prompt .en'), function(){ return q.word.en + ' — ' + q.word.he; });
+    }
     document.getElementById('quiz-feedback').style.display = 'none';
     var optsEl = document.getElementById('quiz-options');
     optsEl.innerHTML = '';
