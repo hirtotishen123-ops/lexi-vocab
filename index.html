@@ -12,6 +12,8 @@
 
   <div class="app" id="app">
 
+    <div class="he-popup" id="he-popup"></div>
+
     <div class="app-header">
       <div class="brand">לקסי<small>Band III · אוצר מילים לבגרות</small></div>
       <button class="header-btn" onclick="goto('stats')">הסטטיסטיקה שלי</button>
@@ -30,6 +32,7 @@
     <!-- INTRO -->
     <div class="screen" id="screen-intro">
       <div class="card-counter" id="intro-counter"></div>
+      <div class="intro-section-label" id="intro-section-label"></div>
       <div class="word-card" id="intro-card"></div>
       <div class="card-nav">
         <button class="nav-btn" id="intro-prev" onclick="introStep(-1)">›</button>
@@ -52,11 +55,12 @@
     <div class="screen" id="screen-fillblank">
       <div class="q-progress" id="fb-progress"></div>
       <div class="sentence-card" id="fb-sentence"></div>
-      <div class="hint-row">
-        <button class="hint-btn" id="fb-hint-btn" onclick="toggleFbHint()">🌐 תרגום</button>
-        <span class="hint-text" id="fb-hint-text"></span>
-      </div>
       <div class="word-bank" id="fb-bank"></div>
+      <p class="press-tip">לחיצה ארוכה על מילה מראה את הפירוש בעברית</p>
+      <div class="feedback-panel" id="fb-feedback" style="display:none;">
+        <div class="feedback-text" id="fb-feedback-text"></div>
+        <button class="btn btn-primary" onclick="continueFillblank()">להמשיך</button>
+      </div>
       <div class="push"></div>
       <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
     </div>
@@ -92,7 +96,7 @@
 
     <!-- MATCHING -->
     <div class="screen" id="screen-matching">
-      <p style="font-size:13px; color:var(--muted-ink); margin-bottom:12px;">הקישו על מילה ואז על ההגדרה המתאימה לה באנגלית.</p>
+      <p style="font-size:13px; color:var(--muted-ink); margin-bottom:12px;">הקישו על מילה ואז על ההגדרה המתאימה לה באנגלית. לחיצה ארוכה על מילה מראה את הפירוש בעברית.</p>
       <div class="match-grid" id="match-grid"></div>
       <div class="push"></div>
       <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
@@ -113,11 +117,12 @@
         <div class="quiz-kicker" id="quiz-kicker"></div>
         <div class="quiz-prompt" id="quiz-prompt"></div>
       </div>
-      <div class="hint-row" id="quiz-hint-row">
-        <button class="hint-btn" id="quiz-hint-btn" onclick="toggleQuizHint()">🌐 תרגום</button>
-        <span class="hint-text" id="quiz-hint-text"></span>
-      </div>
       <div class="quiz-options" id="quiz-options"></div>
+      <p class="press-tip">לחיצה ארוכה על מילה באנגלית מראה את הפירוש בעברית</p>
+      <div class="feedback-panel" id="quiz-feedback" style="display:none;">
+        <div class="feedback-text" id="quiz-feedback-text"></div>
+        <button class="btn btn-primary" onclick="continueQuiz()">להמשיך</button>
+      </div>
       <div class="push"></div>
       <button class="btn btn-outline" onclick="goto('hub')">חזרה לתפריט התרגול</button>
     </div>

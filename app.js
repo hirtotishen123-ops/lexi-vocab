@@ -2,6 +2,7 @@
 
   var CHUNK_SIZE = 13;       // new words introduced per day
   var EXERCISE_CAP = 8;      // max questions per exercise per day
+  var REVIEW_WORDS_PER_DAY = 5; // previously-learned words mixed into today's practice
   var MIN_EXERCISES_PER_DAY = 2;
   var TOTAL_WORDS = ALL_WORDS.length;
 
@@ -13,25 +14,16 @@
     }
     return a;
   }
-  function pickPool(words){
-    var keys = words.map(function(w){ return w.en; });
-    return shuffle(keys).slice(0, Math.min(EXERCISE_CAP, keys.length));
+  function sample(arr, n, exclude){
+    var pool = arr.filter(function(x){ return x !== exclude; });
+    return shuffle(pool).slice(0, n);
   }
 
   function buildDays(words, chunkSize){
     var days = [];
     var dayId = 1;
     for (var i=0; i<words.length; i+=chunkSize, dayId++){
-      var dayWords = words.slice(i, i+chunkSize);
-      var prod = dayWords.filter(function(w){ return !w.rec; });
-      days.push({
-        id: dayId,
-        words: dayWords,
-        fillblank: pickPool(prod),
-        typing: pickPool(prod),
-        matching: pickPool(dayWords),
-        quiz: pickPool(dayWords)
-      });
+      days.push({ id: dayId, words: words.slice(i, i+chunkSize) });
     }
     return days;
   }
@@ -69,17 +61,37 @@
     }
     return null; // finished every day
   }
-  function wordById(day, en){
-    for (var i=0;i<day.words.length;i++) if (day.words[i].en === en) return day.words[i];
-    return null;
+
+  /* ---------------- review words (spaced practice) ---------------- */
+  function allPreviouslyLearnedWords(excludeDayId){
+    var words = [];
+    state.completedDays.forEach(function(id){
+      if (id === excludeDayId) return;
+      var d = DAYS[id-1];
+      if (d) words = words.concat(d.words);
+    });
+    return words;
+  }
+  function getReviewWords(day){
+    var pool = allPreviouslyLearnedWords(day.id);
+    return shuffle(pool).slice(0, Math.min(REVIEW_WORDS_PER_DAY, pool.length));
+  }
+
+  // Builds the actual word-object pool used by one exercise type, mixing
+  // today's new words with a handful of previously-learned words.
+  function getExercisePool(day, type){
+    var reviewWords = getReviewWords(day);
+    var combined;
+    if (type === 'fillblank' || type === 'typing'){
+      combined = day.words.filter(function(w){ return !w.rec; })
+        .concat(reviewWords.filter(function(w){ return !w.rec; }));
+    } else {
+      combined = day.words.concat(reviewWords);
+    }
+    return shuffle(combined).slice(0, Math.min(EXERCISE_CAP, combined.length));
   }
 
   var session = freshSession();
-
-  function sample(arr, n, exclude){
-    var pool = arr.filter(function(x){ return x !== exclude; });
-    return shuffle(pool).slice(0, n);
-  }
 
   /* ---------------- sounds ---------------- */
   var audioCtx = null;
@@ -133,6 +145,39 @@
     } catch(e) {}
   }
 
+  /* ---------------- long-press to reveal Hebrew ---------------- */
+  var popupEl = null;
+  function showHebrewPopup(text){
+    if (!popupEl) popupEl = document.getElementById('he-popup');
+    if (!popupEl) return;
+    popupEl.textContent = text;
+    popupEl.classList.add('visible');
+    clearTimeout(popupEl._hideTimer);
+    popupEl._hideTimer = setTimeout(function(){ popupEl.classList.remove('visible'); }, 1600);
+  }
+  function attachLongPress(el, textFn){
+    var timer = null;
+    var longPressed = false;
+    function start(){
+      longPressed = false;
+      timer = setTimeout(function(){
+        longPressed = true;
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch(e){} }
+        showHebrewPopup(textFn());
+      }, 480);
+    }
+    function cancel(){ clearTimeout(timer); }
+    el.addEventListener('mousedown', start);
+    el.addEventListener('touchstart', start, {passive:true});
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchmove', cancel);
+    el.addEventListener('click', function(e){
+      if (longPressed){ e.stopPropagation(); e.preventDefault(); longPressed = false; }
+    }, true);
+  }
+
   /* ---------------- navigation ---------------- */
   function goto(name){
     document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
@@ -178,11 +223,13 @@
     } else {
       var started = session.started === day.id;
       var label = started ? 'להמשיך מאיפה שעצרת' : 'להתחיל את היום';
+      var reviewNote = day.id > 1 ? ('<p class="day-sub" style="margin-top:6px;">ונתרגל גם כמה מילים ישנות מהימים הקודמים.</p>') : '';
       card.innerHTML =
         '<div class="day-card">' +
           '<div class="day-eyebrow">יום ' + day.id + ' · ' + day.words.length + ' מילים חדשות</div>' +
           '<div class="day-title">בואו נלמד מילים</div>' +
           '<p class="day-sub">נכיר ' + day.words.length + ' מילים חדשות, ואז נתרגל אותן בכמה דרכים שונות.</p>' +
+          reviewNote +
           '<button class="btn btn-primary" style="margin-top:14px;" onclick="startDay(' + day.id + ')">' + label + '</button>' +
         '</div>';
     }
@@ -198,15 +245,21 @@
   }
 
   /* ---------------- INTRO (word cards) ---------------- */
+  var introWords = [];
   var introIdx = 0;
   function renderIntro(){
+    var day = currentDayObj();
+    var reviewWords = day.id > 1 ? getReviewWords(day) : [];
+    introWords = day.words.map(function(w){ return { w:w, isReview:false }; })
+      .concat(reviewWords.map(function(w){ return { w:w, isReview:true }; }));
     introIdx = 0;
     paintIntro();
   }
   function paintIntro(){
-    var day = currentDayObj();
-    var w = day.words[introIdx];
-    document.getElementById('intro-counter').textContent = 'מילה ' + (introIdx+1) + ' מתוך ' + day.words.length;
+    var item = introWords[introIdx];
+    var w = item.w;
+    document.getElementById('intro-counter').textContent = 'כרטיס ' + (introIdx+1) + ' מתוך ' + introWords.length;
+    document.getElementById('intro-section-label').textContent = item.isReview ? 'לחזרה מהימים הקודמים' : 'מילה חדשה';
     var familyHtml = w.family ? ('<div class="word-family">נגזרות: <span class="en">' + w.family.en + '</span> (' + w.family.pos + ') — ' + w.family.he + '</div>') : '';
     document.getElementById('intro-card').innerHTML =
       '<div class="word-top-row">' +
@@ -219,18 +272,17 @@
       '<div class="word-example">' + w.example.replace('___', '<b>' + w.en + '</b>') + '</div>' +
       familyHtml;
     var dots = '';
-    for (var i=0;i<day.words.length;i++){
+    for (var i=0;i<introWords.length;i++){
       dots += '<span class="dot ' + (i<introIdx?'done':(i===introIdx?'current':'')) + '"></span>';
     }
     document.getElementById('intro-dots').innerHTML = dots;
     document.getElementById('intro-prev').disabled = (introIdx===0);
     var nextBtn = document.getElementById('intro-next');
-    nextBtn.textContent = (introIdx === day.words.length-1) ? '✓' : '‹';
+    nextBtn.textContent = (introIdx === introWords.length-1) ? '✓' : '‹';
   }
   function introStep(dir){
-    var day = currentDayObj();
-    if (dir>0 && introIdx===day.words.length-1){ goto('hub'); return; }
-    introIdx = Math.max(0, Math.min(day.words.length-1, introIdx+dir));
+    if (dir>0 && introIdx===introWords.length-1){ goto('hub'); return; }
+    introIdx = Math.max(0, Math.min(introWords.length-1, introIdx+dir));
     paintIntro();
   }
   window.introStep = introStep;
@@ -246,7 +298,8 @@
     ];
     var html = '';
     tiles.forEach(function(t){
-      if (!day[t.key] || day[t.key].length === 0) return; // not available this day
+      var pool = getExercisePool(day, t.key);
+      if (pool.length === 0) return;
       var result = session[t.key];
       var done = result !== null;
       html += '<div class="ex-tile ' + (done?'done':'') + '" onclick="goto(\'' + t.key + '\')">' +
@@ -269,12 +322,15 @@
     }
   }
 
+  function wordFeedbackHtml(w){
+    return 'התשובה הנכונה: <span class="en">' + w.en + '</span> — <span class="he-word">' + w.he + '</span><br>' + w.def;
+  }
+
   /* ---------------- FILL IN THE BLANK ---------------- */
   var fb = {};
   function startFillblank(){
     var day = currentDayObj();
-    var words = day.fillblank.map(function(en){ return wordById(day, en); });
-    fb = { words: words, idx: 0, correct: 0, answered: false };
+    fb = { words: getExercisePool(day, 'fillblank'), idx: 0, correct: 0, locked: false };
     paintFillblank();
   }
   function paintFillblank(){
@@ -285,62 +341,69 @@
 
     var parts = (w.practice || w.example).split('___');
     document.getElementById('fb-sentence').innerHTML = '<span class="sentence-text">' + parts[0] + '<span class="blank-slot" id="fb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>' + parts[1] + '</span>';
-    document.getElementById('fb-hint-text').textContent = '';
 
-    var day = currentDayObj();
-    var options = sample(day.words.map(function(x){return x.en;}), 3, w.en);
+    document.getElementById('fb-feedback').style.display = 'none';
+
+    var options = sample(fb.words.map(function(x){return x.en;}), 3, w.en);
     options.push(w.en);
     options = shuffle(options);
     var bank = document.getElementById('fb-bank');
     bank.innerHTML = '';
     options.forEach(function(opt){
+      var optWord = fb.words.find(function(x){return x.en===opt;}) || w;
       var chip = document.createElement('div');
       chip.className = 'chip';
       chip.textContent = opt;
       chip.onclick = function(){ answerFillblank(opt, w, chip); };
+      attachLongPress(chip, function(){ return optWord.en + ' — ' + optWord.he; });
       bank.appendChild(chip);
     });
-    fb.answered = false;
+    fb.locked = false;
   }
   function answerFillblank(opt, w, chipEl){
-    if (fb.answered) return;
+    if (fb.locked) return;
     var blank = document.getElementById('fb-blank');
     if (opt === w.en){
-      fb.answered = true;
+      fb.locked = true;
       fb.correct++;
       playCorrectSound();
       chipEl.classList.add('correct');
       blank.textContent = w.en;
       blank.classList.add('filled');
       document.querySelectorAll('#fb-bank .chip').forEach(function(c){ c.classList.add('disabled'); });
-      setTimeout(function(){
-        fb.idx++;
-        if (fb.idx >= fb.words.length){ finishFillblank(); } else { paintFillblank(); }
-      }, 650);
+      setTimeout(advanceFillblank, 650);
     } else {
+      fb.locked = true;
       playWrongSound();
       chipEl.classList.add('wrong');
+      document.querySelectorAll('#fb-bank .chip').forEach(function(c){
+        c.classList.add('disabled');
+        if (c.textContent.trim() === w.en) c.classList.add('correct');
+      });
+      blank.textContent = w.en;
       blank.classList.add('wrong');
-      setTimeout(function(){ chipEl.classList.remove('wrong'); blank.classList.remove('wrong'); }, 350);
+      var fbk = document.getElementById('fb-feedback');
+      document.getElementById('fb-feedback-text').innerHTML = wordFeedbackHtml(w);
+      fbk.style.display = 'flex';
     }
   }
+  function advanceFillblank(){
+    fb.idx++;
+    if (fb.idx >= fb.words.length){ finishFillblank(); } else { paintFillblank(); }
+  }
+  function continueFillblank(){ advanceFillblank(); }
+  window.continueFillblank = continueFillblank;
   function finishFillblank(){
     session.fillblank = { correct: fb.correct, total: fb.words.length };
     document.getElementById('fb-score').textContent = fb.correct + '/' + fb.words.length;
     goto('fillblank-done');
   }
-  function toggleFbHint(){
-    var el = document.getElementById('fb-hint-text');
-    el.textContent = el.textContent ? '' : fb.words[fb.idx].he;
-  }
-  window.toggleFbHint = toggleFbHint;
 
   /* ---------------- TYPING ---------------- */
   var tp = {};
   function startTyping(){
     var day = currentDayObj();
-    var words = day.typing.map(function(en){ return wordById(day, en); });
-    tp = { words: words, idx: 0, correct: 0, answered: false };
+    tp = { words: getExercisePool(day, 'typing'), idx: 0, correct: 0, answered: false };
     paintTyping();
   }
   function paintTyping(){
@@ -378,14 +441,14 @@
     } else {
       playWrongSound();
       input.classList.add('wrong');
-      feedback.innerHTML = 'התשובה הנכונה: <span class="en" style="font-weight:600;">' + w.en + '</span>';
+      feedback.innerHTML = 'התשובה הנכונה: <span class="en" style="font-weight:600;">' + w.en + '</span> — ' + w.he;
       feedback.className = 'typing-feedback wrong';
     }
     input.disabled = true;
     setTimeout(function(){
       tp.idx++;
       if (tp.idx >= tp.words.length){ finishTyping(); } else { paintTyping(); }
-    }, 1100);
+    }, 1300);
   }
   function finishTyping(){
     session.typing = { correct: tp.correct, total: tp.words.length };
@@ -401,8 +464,7 @@
   var mt = {};
   function startMatching(){
     var day = currentDayObj();
-    var words = day.matching.map(function(en){ return wordById(day, en); });
-    mt = { words: words, matchedCount: 0, selWord: null, selDef: null };
+    mt = { words: getExercisePool(day, 'matching'), matchedCount: 0, selWord: null, selDef: null };
     paintMatching();
   }
   function paintMatching(){
@@ -416,6 +478,7 @@
       el.textContent = w.en;
       el.dataset.en = w.en;
       el.onclick = function(){ selectWord(w.en, el); };
+      attachLongPress(el, function(){ return w.en + ' — ' + w.he; });
       grid.appendChild(el);
     });
     rightOrder.forEach(function(w){
@@ -474,19 +537,19 @@
   var qz = {};
   function startQuiz(){
     var day = currentDayObj();
-    var words = day.quiz.map(function(en){ return wordById(day, en); });
+    var words = getExercisePool(day, 'quiz');
     var questions = words.map(function(w, i){
       var heToEn = (i % 2 === 0);
-      var distractors = sample(day.words.filter(function(x){return x.en!==w.en;}), 3, null);
+      var distractors = sample(words.filter(function(x){return x.en!==w.en;}), 3, null);
       if (heToEn){
-        var opts = shuffle(distractors.map(function(x){return x.en;}).concat([w.en]));
-        return { kicker:'איך אומרים את זה באנגלית?', prompt: w.he, options: opts, answer: w.en, isEn:true, promptEn:false, word:w };
+        var opts = shuffle(distractors.concat([w]));
+        return { kicker:'איך אומרים את זה באנגלית?', prompt: w.he, options: opts, answer: w.en, isEn:true, word:w };
       } else {
-        var opts2 = shuffle(distractors.map(function(x){return x.he;}).concat([w.he]));
+        var opts2 = shuffle(distractors.concat([w]));
         return { kicker:'מה המשמעות של המילה?', prompt: w.en, promptEn:true, options: opts2, answer: w.he, isEn:false, word:w };
       }
     });
-    qz = { questions: questions, idx: 0, correct: 0, answered:false };
+    qz = { questions: questions, idx: 0, correct: 0, locked:false };
     paintQuiz();
   }
   function paintQuiz(){
@@ -496,45 +559,50 @@
     document.getElementById('quiz-progress').innerHTML = prog;
     document.getElementById('quiz-kicker').textContent = q.kicker;
     document.getElementById('quiz-prompt').innerHTML = q.promptEn ? '<span class="en">' + q.prompt + '</span>' : q.prompt;
-    document.getElementById('quiz-hint-row').style.display = q.promptEn ? 'flex' : 'none';
-    document.getElementById('quiz-hint-text').textContent = '';
+    document.getElementById('quiz-feedback').style.display = 'none';
     var optsEl = document.getElementById('quiz-options');
     optsEl.innerHTML = '';
-    q.options.forEach(function(opt){
+    q.options.forEach(function(optWord){
+      var text = q.isEn ? optWord.en : optWord.he;
       var el = document.createElement('div');
       el.className = 'q-opt' + (q.isEn ? ' en' : '');
-      el.textContent = opt;
-      el.onclick = function(){ answerQuiz(opt, q, el); };
+      el.textContent = text;
+      el.onclick = function(){ answerQuiz(text, q, el); };
+      if (q.isEn) attachLongPress(el, function(){ return optWord.en + ' — ' + optWord.he; });
       optsEl.appendChild(el);
     });
-    qz.answered = false;
+    qz.locked = false;
   }
   function answerQuiz(opt, q, el){
-    if (qz.answered) return;
-    qz.answered = true;
+    if (qz.locked) return;
+    qz.locked = true;
     var correct = (opt === q.answer);
-    if (correct){ qz.correct++; playCorrectSound(); } else { playWrongSound(); }
     document.querySelectorAll('#quiz-options .q-opt').forEach(function(o){
       o.classList.add('disabled');
       if (o.textContent === q.answer) o.classList.add('correct');
       else if (o === el) o.classList.add('wrong');
     });
-    setTimeout(function(){
-      qz.idx++;
-      if (qz.idx >= qz.questions.length) finishQuiz(); else paintQuiz();
-    }, 700);
+    if (correct){
+      qz.correct++;
+      playCorrectSound();
+      setTimeout(advanceQuiz, 650);
+    } else {
+      playWrongSound();
+      document.getElementById('quiz-feedback-text').innerHTML = wordFeedbackHtml(q.word);
+      document.getElementById('quiz-feedback').style.display = 'flex';
+    }
   }
+  function advanceQuiz(){
+    qz.idx++;
+    if (qz.idx >= qz.questions.length) finishQuiz(); else paintQuiz();
+  }
+  function continueQuiz(){ advanceQuiz(); }
+  window.continueQuiz = continueQuiz;
   function finishQuiz(){
     session.quiz = { correct: qz.correct, total: qz.questions.length };
     document.getElementById('quiz-score').textContent = qz.correct + '/' + qz.questions.length;
     goto('quiz-done');
   }
-  function toggleQuizHint(){
-    var el = document.getElementById('quiz-hint-text');
-    var q = qz.questions[qz.idx];
-    el.textContent = el.textContent ? '' : q.word.he;
-  }
-  window.toggleQuizHint = toggleQuizHint;
 
   /* ---------------- SUMMARY ---------------- */
   function renderSummary(){
