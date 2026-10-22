@@ -156,6 +156,7 @@
     popupEl._hideTimer = setTimeout(function(){ popupEl.classList.remove('visible'); }, 1600);
   }
   function attachLongPress(el, textFn){
+    el.classList.add('longpress-target');
     var timer = null;
     var longPressed = false;
     function start(){
@@ -164,7 +165,7 @@
         longPressed = true;
         if (navigator.vibrate) { try { navigator.vibrate(15); } catch(e){} }
         showHebrewPopup(textFn());
-      }, 480);
+      }, 420);
     }
     function cancel(){ clearTimeout(timer); }
     el.addEventListener('mousedown', start);
@@ -172,7 +173,9 @@
     el.addEventListener('mouseup', cancel);
     el.addEventListener('mouseleave', cancel);
     el.addEventListener('touchend', cancel);
+    el.addEventListener('touchcancel', cancel);
     el.addEventListener('touchmove', cancel);
+    el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
     el.addEventListener('click', function(e){
       if (longPressed){ e.stopPropagation(); e.preventDefault(); longPressed = false; }
     }, true);
@@ -278,7 +281,7 @@
     document.getElementById('intro-dots').innerHTML = dots;
     document.getElementById('intro-prev').disabled = (introIdx===0);
     var nextBtn = document.getElementById('intro-next');
-    nextBtn.textContent = (introIdx === introWords.length-1) ? '✓' : '‹';
+    nextBtn.textContent = (introIdx === introWords.length-1) ? '✓' : '›';
   }
   function introStep(dir){
     if (dir>0 && introIdx===introWords.length-1){ goto('hub'); return; }
