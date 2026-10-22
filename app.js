@@ -1,8 +1,8 @@
 (function(){
 
   var CHUNK_SIZE = 13;       // new words introduced per day
-  var EXERCISE_CAP = 8;      // max questions per exercise per day
-  var REVIEW_WORDS_PER_DAY = 5; // previously-learned words mixed into today's practice
+  var MATCHING_CAP = 8;      // matching is a single-screen spatial game, so it stays capped
+  var REVIEW_WORDS_PER_DAY = 8; // previously-learned words mixed into today's practice
   var MIN_EXERCISES_PER_DAY = 2;
   var TOTAL_WORDS = ALL_WORDS.length;
 
@@ -77,8 +77,9 @@
     return shuffle(pool).slice(0, Math.min(REVIEW_WORDS_PER_DAY, pool.length));
   }
 
-  // Builds the actual word-object pool used by one exercise type, mixing
-  // today's new words with a handful of previously-learned words.
+  // Builds the actual word-object pool used by one exercise type: every one of
+  // today's new words (production-only for fillblank/typing), plus a batch of
+  // previously-learned words mixed in for long-term, spaced review.
   function getExercisePool(day, type){
     var reviewWords = getReviewWords(day);
     var combined;
@@ -88,7 +89,9 @@
     } else {
       combined = day.words.concat(reviewWords);
     }
-    return shuffle(combined).slice(0, Math.min(EXERCISE_CAP, combined.length));
+    combined = shuffle(combined);
+    if (type === 'matching') combined = combined.slice(0, Math.min(MATCHING_CAP, combined.length));
+    return combined;
   }
 
   var session = freshSession();
@@ -343,7 +346,9 @@
     document.getElementById('fb-progress').innerHTML = prog;
 
     var parts = (w.practice || w.example).split('___');
-    document.getElementById('fb-sentence').innerHTML = '<span class="sentence-text">' + parts[0] + '<span class="blank-slot" id="fb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>' + parts[1] + '</span>';
+    var sentenceEl = document.getElementById('fb-sentence');
+    sentenceEl.innerHTML = '<span class="sentence-text">' + parts[0] + '<span class="blank-slot" id="fb-blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>' + parts[1] + '</span>';
+    attachLongPress(sentenceEl.querySelector('.sentence-text'), function(){ return w.en + ' — ' + w.he; });
 
     document.getElementById('fb-feedback').style.display = 'none';
 
@@ -373,7 +378,6 @@
       chipEl.classList.add('correct');
       blank.textContent = w.en;
       blank.classList.add('filled');
-      attachLongPress(blank, function(){ return w.en + ' — ' + w.he; });
       document.querySelectorAll('#fb-bank .chip').forEach(function(c){ c.classList.add('disabled'); });
       setTimeout(advanceFillblank, 650);
     } else {
@@ -386,7 +390,6 @@
       });
       blank.textContent = w.en;
       blank.classList.add('wrong');
-      attachLongPress(blank, function(){ return w.en + ' — ' + w.he; });
       var fbk = document.getElementById('fb-feedback');
       document.getElementById('fb-feedback-text').innerHTML = wordFeedbackHtml(w);
       fbk.style.display = 'flex';
